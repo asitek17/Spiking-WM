@@ -1,5 +1,5 @@
 spike_times: 5
 steps: 500000
-batch_size: 32
-train_ratio: 1024
+batch_size: 16
+train_ratio: 512
 actor_et_lambda: 0.95
