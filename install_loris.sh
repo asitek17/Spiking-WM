@@ -29,6 +29,9 @@ tar -xzf "$ARCHIVE" -C /tmp
 # Remove the line incompatible with modern setuptools
 sed -i '/__builtins__\.__NUMPY_SETUP__ = False/d' "$SRC_DIR/setup.py"
 
+# wheel must be present before building — loris doesn't declare it as a build dep
+uv pip install wheel
+
 # Install without build isolation so the already-pinned numpy (1.26.4) is used
 # for C++ extension compilation — loris uses deprecated numpy 1.x internal APIs
 uv pip install "$SRC_DIR" --no-build-isolation
