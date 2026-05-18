@@ -1,0 +1,5 @@
+debug: True
+pretrain: 1
+prefill: 1
+batch_size: 10
+batch_length: 20

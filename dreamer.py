@@ -389,9 +389,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--configs", nargs="+")
     args, remaining = parser.parse_known_args()
-    configs = yaml.safe_load(
-        (pathlib.Path(sys.argv[0]).parent / "configs.yaml").read_text()
-    )
+    config_dir = pathlib.Path(sys.argv[0]).parent / "configs"
 
     def recursive_update(base, update):
         for key, value in update.items():
@@ -403,7 +401,7 @@ if __name__ == "__main__":
     name_list = ["defaults", *args.configs] if args.configs else ["defaults"]
     defaults = {}
     for name in name_list:
-        recursive_update(defaults, configs[name])
+        recursive_update(defaults, yaml.safe_load((config_dir / f"{name}.yaml").read_text()))
     parser = argparse.ArgumentParser()
     for key, value in sorted(defaults.items(), key=lambda x: x[0]):
         arg_type = tools.args_type(value)

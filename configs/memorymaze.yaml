@@ -1,0 +1,5 @@
+steps: 1e8
+action_repeat: 2
+actor_dist: 'onehot'
+imag_gradient: 'reinforce'
+task: 'memorymaze_9x9'
