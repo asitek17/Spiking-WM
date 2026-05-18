@@ -11,9 +11,9 @@
 # be pinned to 1.26.x before building. numpy==1.26.4 is installed first in the
 # Dockerfile (via requirements.txt) before this script runs.
 #
-# In Docker: called automatically from Dockerfile — no manual steps needed.
-# Locally: run after installing numpy==1.26.4 via pip:
-#   pip install "numpy==1.26.4" && bash install_loris.sh
+# Via uv: called automatically from setup.sh after `uv sync` (numpy 1.26.4 already present).
+# Manually: activate the venv first, then run:
+#   source .venv/bin/activate && bash install_loris.sh
 set -e
 
 ARCHIVE=/tmp/loris-0.5.3.tar.gz

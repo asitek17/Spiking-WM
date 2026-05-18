@@ -43,41 +43,37 @@ Mingyang Lyu<sup>1,2</sup>,
 
 ## 🛠️ Installation
 
-The project is deployed via Docker — no Conda required. The container bundles Python 3.10,
-PyTorch 2.4.1 + CUDA 12.1, MuJoCo EGL headless rendering, and all pip dependencies including
-a patched build of `loris`.
+The project uses [uv](https://docs.astral.sh/uv/) — no Docker, no Conda, no sudo required.
+A single script sets up Python 3.10, PyTorch 2.4.1 + CUDA 12.1, MuJoCo EGL rendering,
+and all dependencies including a patched build of `loris`.
 
-### Prerequisites (host machine)
+### Prerequisites
 
-- NVIDIA driver >= 525 (CUDA 12.1 minor-version compatible); driver >= 550 for CUDA 12.4
-- [Docker](https://docs.docker.com/engine/install/ubuntu/)
-- [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)
+- NVIDIA driver ≥ 525 (CUDA 12.1 minor-version compatible)
+- `build-essential` installed on the host (for loris C++ compilation)
+- `uv` binary — see [installation](https://docs.astral.sh/uv/getting-started/installation/) or copy from another machine
 
-```bash
-# Configure Docker to use the NVIDIA runtime
-sudo nvidia-ctk runtime configure --runtime=docker
-sudo systemctl restart docker
-
-# Verify GPU passthrough
-docker run --gpus all --rm nvidia/cuda:12.1.1-base-ubuntu22.04 nvidia-smi
-```
-
-### Build the image
+### Setup
 
 ```bash
-# From the project root
-bash docker/build.sh            # builds image tagged 'spiking-wm'
-# or with a custom tag:
-bash docker/build.sh my-tag
+git clone <repo-url> && cd Spiking-WM-cluster
+bash setup.sh
+source .venv/bin/activate
+
+# Verify
+python -c "import torch; print(torch.cuda.is_available(), torch.version.cuda)"
 ```
 
-### Known dependency issues (handled automatically in Docker)
+`setup.sh` runs three steps: `uv python install 3.10` → `uv sync` → patched loris build.
+Full details in [DEPLOY_NOTE.md](DEPLOY_NOTE.md).
+
+### Known dependency issues (handled automatically by setup.sh)
 
 | Problem | Root cause | Fix |
 |---|---|---|
-| `loris==0.5.3` install fails | `setup.py` uses `__builtins__.__NUMPY_SETUP__` — a dict under modern setuptools, not a module | `install_loris.sh` patches the line before building; called inside `Dockerfile` |
-| `loris` C++ compilation error | Uses `PyArray_DESCR->fields`, removed in numpy 2.0 | `numpy==1.26.4` pinned at the top of `requirements.txt` so it installs before `loris` |
-| `undefined symbol: iJIT_NotifyEvent` on `import torch` | pip `mkl==2026.x` missing a VTune symbol that torch 2.4.1 expects | Eliminated: MKL is not installed in the pip-only Docker environment |
+| `loris==0.5.3` install fails | `setup.py` uses `__builtins__.__NUMPY_SETUP__` — a dict under modern setuptools, not a module | `install_loris.sh` patches the line before building |
+| `loris` C++ compilation error | Uses `PyArray_DESCR->fields`, removed in numpy 2.0 | `numpy==1.26.4` pinned first in `pyproject.toml` |
+| `undefined symbol: iJIT_NotifyEvent` on `import torch` | pip `mkl==2026.x` missing a VTune symbol that torch 2.4.1 expects | `mkl-service` excluded from deps |
 
 <p align="right"><a href="#readme-top"><img src=https://img.shields.io/badge/back%20to%20top-red?style=flat
 ></a></p>
@@ -85,37 +81,22 @@ bash docker/build.sh my-tag
 
 ## 🚀 Training
 
-### Interactive shell
-
 ```bash
-bash docker/run.sh              # starts container with GPU, mounts logs/ and data/
-```
+source .venv/bin/activate
 
-Inside the container:
-
-```bash
-# Smoke test — fast debug run
-python dreamer.py --configs dmc_vision debug --task dmc_walker_walk --logdir /workspace/logs/debug
+# Smoke test — fast debug run (~15-30 min)
+bash scripts/train.sh
 
 # Full training run
-python dreamer.py --configs dmc_vision --task dmc_walker_walk --seed 0 --logdir /workspace/logs/walker
+MUJOCO_GL=egl PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
+python dreamer.py --configs dmc_vision --task dmc_walker_walk --seed 0 --logdir ./logs/walker
 ```
 
 ### Background training (survives SSH disconnect)
 
 ```bash
-docker run --gpus all -d \
-  --name swm_run \
-  --ipc=host --shm-size=16g \
-  -v $(pwd)/logs:/workspace/logs \
-  -v $(pwd)/data:/workspace/data \
-  -e PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
-  -e WANDB_API_KEY=<your_key> \
-  spiking-wm \
-  python dreamer.py --configs dmc_vision --task dmc_walker_walk --seed 0 --logdir /workspace/logs/walker
-
-docker logs -f swm_run          # follow logs
-docker stop swm_run             # stop
+nohup bash scripts/train.sh > logs/train.log 2>&1 &
+tail -f logs/train.log
 ```
 
 ### Config system

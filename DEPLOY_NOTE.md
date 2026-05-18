@@ -1,120 +1,134 @@
-# Spiking World Model — Docker Deployment Guide (Ubuntu 24.04 LTS)
+# Spiking World Model — Deployment Guide (uv, no sudo)
 
-Step-by-step guide for building and running the project on a server with an NVIDIA GPU.
-The container uses pure pip (no Conda) based on the official CUDA runtime image.
+Step-by-step guide for deploying on a server with an NVIDIA GPU using
+[uv](https://docs.astral.sh/uv/) — no Docker, no Conda, no sudo required.
 
 ## System specification (reference)
-* **OS:** Ubuntu 24.04 LTS
-* **GPU:** NVIDIA RTX 4090 (24 GB VRAM) or similar
-* **Host driver:** check with `nvidia-smi` — see "CUDA Version" in top-right corner
-  * Driver >= 550 → CUDA 12.4 in container (matches `environment.yml`)
-  * Driver 525–549 → use CUDA 12.1 (minor version compatibility)
+
+| Item | Value |
+|------|-------|
+| OS | Ubuntu 24.04 LTS |
+| GPU | NVIDIA RTX 4090 (24 GB VRAM) |
+| Driver / CUDA | ≥ 525 (CUDA 12.1 minor-version compatible) |
+| Python | 3.10 (installed by uv, no system Python needed) |
+| EGL | `libEGL.so.1` + `libEGL_nvidia.so.0` present → MuJoCo EGL headless works |
+| build-essential | installed (required for loris C++ extension) |
 
 ---
 
-## Step 1. Host setup
+## Step 1. Get uv (no sudo)
 
-### Install Docker
+If `uv` is not on the server, copy the binary from a machine that has it:
+
 ```bash
-sudo apt-get update
-sudo apt-get install ca-certificates curl
-sudo install -m 0755 -d /etc/apt/keyrings
-sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-sudo chmod a+r /etc/apt/keyrings/docker.asc
+# On local machine — copy to server
+scp ~/.local/bin/uv user@server:~/.local/bin/uv
 
-echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
-  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-sudo apt-get update
-sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+# On the server — add to PATH (add to ~/.bashrc for persistence)
+export PATH="$HOME/.local/bin:$PATH"
+uv --version   # should print uv 0.x.y
 ```
 
-### Install NVIDIA Container Toolkit
+Or install directly on the server if internet is available:
+
 ```bash
-curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
-  && curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
-    sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
-    sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
-
-sudo apt-get update
-sudo apt-get install -y nvidia-container-toolkit
-
-# Configure Docker runtime and restart daemon
-sudo nvidia-ctk runtime configure --runtime=docker
-sudo systemctl restart docker
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
-
-Verify GPU passthrough: `docker run --gpus all --rm nvidia/cuda:12.1.1-base-ubuntu22.04 nvidia-smi`
 
 ---
 
-## Step 2. Project files
+## Step 2. Clone and set up
 
-The following files are already present in `Spiking-WM-cluster/`:
+```bash
+git clone <repo-url> ~/projects/Spiking-WM
+cd ~/projects/Spiking-WM
+bash setup.sh
+```
+
+`setup.sh` does three things in order:
+1. `uv python install 3.10` — downloads a standalone CPython 3.10 (no sudo)
+2. `uv sync` — creates `.venv/`, installs torch cu121 + all other deps from `pyproject.toml`
+3. `bash install_loris.sh` — patches and builds loris 0.5.3 from source
+
+Expected time: ~5–10 min (dominated by torch download ~2 GB).
+
+---
+
+## Step 3. Verify
+
+```bash
+source .venv/bin/activate
+
+# CUDA check
+python -c "import torch; print(torch.cuda.is_available(), torch.version.cuda)"
+# Expected: True 12.1
+
+# MuJoCo EGL check
+MUJOCO_GL=egl python -c "import mujoco; print('mujoco ok')"
+```
+
+---
+
+## Step 4. Training
+
+```bash
+source .venv/bin/activate
+
+# Smoke test (~15-30 min)
+bash scripts/train.sh
+
+# Background run (survives SSH disconnect)
+nohup bash scripts/train.sh > logs/train.log 2>&1 &
+tail -f logs/train.log
+```
+
+Or run directly:
+
+```bash
+MUJOCO_GL=egl PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
+python dreamer.py --configs dmc_vision walker_bs32_500k \
+  --task dmc_walker_walk --seed 0 --logdir ./logs/walker_bs32_500k
+```
+
+---
+
+## Key files
 
 | File | Purpose |
 |------|---------|
-| `Dockerfile` | Container definition — CUDA 12.1 + Python 3.10 + EGL rendering |
-| `requirements.txt` | All pip deps with `numpy==1.26.4` pinned |
-| `install_loris.sh` | Patched loris install (incompatible with modern setuptools) |
-| `.dockerignore` | Excludes logs, data, checkpoints from build context |
-| `docker/build.sh` | Build helper |
-| `docker/run.sh` | Run helper with correct GPU and IPC flags |
+| `pyproject.toml` | All Python deps; torch pulled from PyTorch cu121 index |
+| `.python-version` | Pins Python 3.10 for uv |
+| `setup.sh` | One-command setup: `uv python install` + `uv sync` + loris |
+| `install_loris.sh` | Patched loris 0.5.3 source build (modern setuptools workaround) |
+| `scripts/train.sh` | Training launcher — activates venv, sets `MUJOCO_GL=egl` |
+| `uv.lock` | Locked dependency graph (committed for reproducibility) |
 
-Key Dockerfile design decisions:
-- `MUJOCO_GL=egl` — EGL headless rendering (faster than OSMesa on NVIDIA GPUs, matches `dreamer.py`)
-- `libegl1-mesa-dev` in system deps — required for EGL support
-- `loris` installed via `install_loris.sh`, not from requirements.txt (needs source patch)
-- `--ipc=host --shm-size=16g` in run script — required for PyTorch multiprocessing DataLoader
+Docker files (`Dockerfile`, `docker/`) remain as reference but are not used.
 
 ---
 
-## Step 3. Build and run
+## Dependency notes
 
-```bash
-cd Spiking-WM-cluster
-
-# Build image
-bash docker/build.sh
-
-# Interactive shell with GPU and mounted volumes
-bash docker/run.sh
-
-# Inside the container — smoke test
-python -c "import torch; print(torch.cuda.is_available(), torch.version.cuda)"
-
-# Inside the container — training
-python dreamer.py --configs dmc_vision --task dmc_walker_walk --logdir /workspace/logs --seed 0
-```
-
-### Background training (survives SSH disconnect)
-```bash
-docker run --gpus all -d \
-  --name swm_training \
-  --ipc=host \
-  --shm-size=16g \
-  -v $(pwd):/workspace \
-  -e PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
-  -e WANDB_API_KEY=<your_key> \
-  -w /workspace \
-  spiking-wm \
-  python dreamer.py --configs dmc_vision --task dmc_walker_walk --logdir /workspace/logs
-
-# Monitor
-docker logs -f swm_training
-
-# Stop
-docker stop swm_training
-```
-
----
+| Problem | Root cause | Fix |
+|---------|-----------|-----|
+| `loris==0.5.3` install fails | `setup.py` uses `__builtins__.__NUMPY_SETUP__` — a dict under modern setuptools | `install_loris.sh` patches the line before building |
+| `loris` C++ build error | Uses `PyArray_DESCR->fields`, removed in numpy 2.0 | `numpy==1.26.4` pinned first in `pyproject.toml` |
+| `undefined symbol: iJIT_NotifyEvent` | pip `mkl==2026.x` missing a VTune symbol that torch 2.4.1 expects | `mkl-service` excluded from deps |
 
 ## Troubleshooting
 
-1. **OOM on CPU RAM**: reduce `num_workers` in DataLoader if the server has many CPU cores.
-2. **WandB**: pass API key via `-e WANDB_API_KEY=<key>` on `docker run`.
-3. **CUDA version mismatch**: run `nvidia-smi` on the host and compare "CUDA Version" against the
-   version in the Dockerfile base image. If driver >= 550, switch to the `cu124` base image and
-   wheel index (see comment at top of `Dockerfile`).
+**uv not found after setup:**
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+**EGL error on `import mujoco`:**
+```bash
+ls /usr/lib/x86_64-linux-gnu/libEGL*   # should show libEGL.so.1 and libEGL_nvidia.so.0
+```
+If missing, contact the server admin — NVIDIA driver must be installed with EGL support.
+
+**WandB:**
+```bash
+export WANDB_API_KEY=<your_key>
+```
