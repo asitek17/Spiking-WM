@@ -490,7 +490,19 @@ class ImagBehavior(nn.Module):
             state_entropy = self._config.actor_state_entropy() * state_ent[:-1]
             actor_target += state_entropy
             metrics["actor_state_entropy"] = to_np(torch.mean(state_entropy))
-        actor_loss = -torch.mean(weights[:-1] * actor_target)
+        if self._config.actor_et_lambda > 0.0:
+            # Forward eligibility trace: e_t = sum_{k=0}^{t} (gamma*lambda_et)^k
+            # Closed form: e_t = (1 - gl^{t+1}) / (1 - gl)
+            # Normalized so mean(e_t) = 1, preserving loss scale.
+            T = actor_target.shape[0]
+            gl = self._config.discount * self._config.actor_et_lambda
+            t_idx = torch.arange(T, dtype=actor_target.dtype, device=actor_target.device)
+            et = (1.0 - gl ** (t_idx + 1)) / (1.0 - gl)
+            et = (et / et.mean()).view(T, 1, 1)
+            metrics["actor_et_max"] = to_np(et.max())
+            actor_loss = -torch.mean(weights[:-1] * et * actor_target)
+        else:
+            actor_loss = -torch.mean(weights[:-1] * actor_target)
         return actor_loss, metrics
 
     def _update_slow_target(self):
