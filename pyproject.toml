@@ -113,13 +113,4 @@ dependencies = [
 
 [tool.uv]
 package = false
-
-[[tool.uv.indexes]]
-name = "pytorch-cu121"
-url = "https://download.pytorch.org/whl/cu121"
-explicit = true
-
-[tool.uv.sources]
-torch = { index = "pytorch-cu121" }
-torchvision = { index = "pytorch-cu121" }
-torchaudio = { index = "pytorch-cu121" }
+torch-backend = "cu121"
