@@ -95,10 +95,10 @@ docker run --gpus all -d \
   --name swm_training \
   --ipc=host \
   --shm-size=16g \
-  -v $(pwd)/logs:/workspace/logs \
-  -v $(pwd)/data:/workspace/data \
+  -v $(pwd):/workspace \
   -e PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
   -e WANDB_API_KEY=<your_key> \
+  -w /workspace \
   spiking-wm \
   python dreamer.py --configs dmc_vision --task dmc_walker_walk --logdir /workspace/logs
 

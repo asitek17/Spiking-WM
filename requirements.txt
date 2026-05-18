@@ -52,7 +52,7 @@ Markdown==3.6
 markdown-it-py==3.0.0
 matplotlib==3.9.0
 mdurl==0.1.2
-# mkl-service==2.4.0 — managed via conda (see environment.yml); pip version pulls in mkl 2026.x which breaks torch 2.4.1
+# mkl-service omitted — pip version pulls in mkl 2026.x which breaks torch 2.4.1
 moviepy==1.0.3
 msgpack==1.0.8
 mujoco==2.3.5
