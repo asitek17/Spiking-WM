@@ -1,6 +1,9 @@
 # Training logs and checkpoints
 logs/
 
+# Local-only notes (not deployed to server)
+notes/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
