@@ -1,0 +1,8 @@
+spike_times: 5
+steps: 5000          # YAML -> 2500 internal; logger reaches ~10000 (including prefill)
+batch_size: 16
+train_ratio: 512
+eval_every: 5000     # single eval at the end
+eval_episode_num: 3  # fast eval
+log_every: 2500      # 2 fps readings during training
+precision: 16        # bf16 — the main thing being tested

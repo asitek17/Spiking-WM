@@ -1,0 +1,8 @@
+spike_times: 5
+steps: 200000        # YAML -> 100k internal; adjust after timing test
+batch_size: 16
+train_ratio: 512
+eval_every: 50000    # 4 eval points instead of 20 -> saves ~6h overhead
+eval_episode_num: 5  # instead of 10 -> 2x faster eval
+log_every: 5000      # frequent logging for monitoring
+precision: 16
