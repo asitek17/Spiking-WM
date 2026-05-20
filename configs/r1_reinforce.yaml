@@ -1,0 +1,13 @@
+# Rung 1: actor trained without backprop through the world model.
+# imag_gradient='reinforce' => score-function gradient flows only into the
+# actor; with behavior_stop_grad=True (default) the RSSM/world model is not
+# differentiated. Mirrors fast_exp_baseline so it is comparable to the existing
+# dynamics baseline (seed 0, ~363).
+spike_times: 5
+steps: 40000
+batch_size: 16
+train_ratio: 512
+eval_every: 20000
+eval_episode_num: 5
+log_every: 5000
+imag_gradient: 'reinforce'

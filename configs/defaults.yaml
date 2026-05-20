@@ -104,6 +104,7 @@ discount_lambda: 0.95
 imag_horizon: 15
 imag_gradient: 'dynamics'
 actor_et_lambda: 0.0
+actor_et_backward: False
 imag_gradient_mix: '0.0'
 imag_sample: True
 actor_dist: 'normal'

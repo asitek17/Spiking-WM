@@ -1,0 +1,15 @@
+# Rung 1 + backward eligibility trace.
+# Same as r1_reinforce, but the actor's policy-gradient term is reweighted by a
+# backward trace (early imagination steps weighted more, where the world model
+# is most reliable). This is local temporal credit assignment (e-prop / three-
+# factor flavour) on top of the backprop-free REINFORCE actor.
+spike_times: 5
+steps: 40000
+batch_size: 16
+train_ratio: 512
+eval_every: 20000
+eval_episode_num: 5
+log_every: 5000
+imag_gradient: 'reinforce'
+actor_et_lambda: 0.95
+actor_et_backward: True

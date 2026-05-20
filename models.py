@@ -498,6 +498,10 @@ class ImagBehavior(nn.Module):
             gl = self._config.discount * self._config.actor_et_lambda
             t_idx = torch.arange(T, dtype=actor_target.dtype, device=actor_target.device)
             et = (1.0 - gl ** (t_idx + 1)) / (1.0 - gl)
+            if self._config.actor_et_backward:
+                # Backward trace: weight EARLY imagination steps more, where the
+                # world model is most reliable (mean is flip-invariant).
+                et = torch.flip(et, [0])
             et = (et / et.mean()).view(T, 1, 1)
             metrics["actor_et_max"] = to_np(et.max())
             actor_loss = -torch.mean(weights[:-1] * et * actor_target)
