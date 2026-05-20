@@ -466,17 +466,27 @@ class ImagBehavior(nn.Module):
             metrics["EMA_005"] = to_np(values[0])
             metrics["EMA_095"] = to_np(values[1])
 
+        # Advantage for the REINFORCE / both score-function term. base ==
+        # self.value(imag_feat).mode()[:-1] (from _compute_target); recomputing
+        # via self.value(imag_feat[:-1]) would slice the spike axis (dim 0) in
+        # this spiking fork and crash the value net. Default is the raw
+        # advantage (vanilla DreamerV3); actor_reinforce_norm_adv reuses the
+        # RewardEMA-normalized adv to tame gradient variance when returns grow.
+        if self._config.actor_reinforce_norm_adv and self._config.reward_EMA:
+            reinforce_adv = adv
+        else:
+            reinforce_adv = target - base
         if self._config.imag_gradient == "dynamics":
             actor_target = adv
         elif self._config.imag_gradient == "reinforce":
             actor_target = (
                 policy.log_prob(imag_action)[:-1][:, :, None]
-                * (target - self.value(imag_feat[:-1]).mode()).detach()
+                * reinforce_adv.detach()
             )
         elif self._config.imag_gradient == "both":
             actor_target = (
                 policy.log_prob(imag_action)[:-1][:, :, None]
-                * (target - self.value(imag_feat[:-1]).mode()).detach()
+                * reinforce_adv.detach()
             )
             mix = self._config.imag_gradient_mix()
             actor_target = mix * target + (1 - mix) * actor_target
