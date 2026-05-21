@@ -1,0 +1,19 @@
+# Rung 1 stabilized: REINFORCE actor with anti-collapse controls.
+# The first pilot collapsed: actor_entropy floored ~-5.3 by step 15k, the
+# score-function gradient vanished (~0.001), return stuck ~28 vs dynamics ~369.
+# Two levers, both targeting the entropy collapse:
+#  - actor_reinforce_norm_adv: RewardEMA-normalize the advantage (raw adv grew
+#    to ~10-48 and drove the policy std down hard early).
+#  - actor_entropy 3e-4 -> 3e-3 (x10): keep the policy stochastic so the
+#    score-function gradient stays informative.
+# No ET yet: first confirm REINFORCE can learn at all, then re-test ET.
+spike_times: 5
+steps: 40000
+batch_size: 16
+train_ratio: 512
+eval_every: 20000
+eval_episode_num: 5
+log_every: 5000
+imag_gradient: 'reinforce'
+actor_reinforce_norm_adv: True
+actor_entropy: '3e-3'

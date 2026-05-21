@@ -31,7 +31,7 @@ SECONDARY = "eval_return"
 DIAGNOSTICS = ["eval_return", "value_mean", "actor_entropy", "actor_et_max",
                "actor_grad_norm", "model_loss"]
 CURVE_METRICS = ["eval_return", "train_return", "value_mean"]
-CONDITION_ORDER = ["dynamics", "reinforce", "reinforce_back_et"]
+CONDITION_ORDER = ["dynamics", "reinforce", "reinforce_stab", "reinforce_back_et"]
 
 
 def load(csv_path):

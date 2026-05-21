@@ -25,6 +25,7 @@ MANIFEST = [
     ("fast_baseline", "dynamics", 0),
     ("r1_reinforce_s0", "reinforce", 0),
     ("r1_reinforce_back_et_s0", "reinforce_back_et", 0),
+    ("r1_reinforce_stab_s0", "reinforce_stab", 0),
 ]
 
 # Primary metric is eval_return / train_return; the rest are diagnostics.
