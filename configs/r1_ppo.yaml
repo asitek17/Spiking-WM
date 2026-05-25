@@ -1,0 +1,14 @@
+# Rung 1.5: PPO-style actor without backprop through the world model.
+# imag_gradient='reinforce' + PPO clip (epsilon=0.2) + K=4 actor epochs per batch.
+# Epoch 1 always has r_t = 1 (same weights as when actions were sampled);
+# clip becomes active from epoch 2 onward as the policy drifts.
+spike_times: 5
+steps: 40000
+batch_size: 16
+train_ratio: 512
+eval_every: 20000
+eval_episode_num: 5
+log_every: 5000
+imag_gradient: 'reinforce'
+ppo_epsilon: 0.2
+ppo_epochs: 4

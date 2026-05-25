@@ -320,34 +320,46 @@ class ImagBehavior(nn.Module):
         self._update_slow_target()
         metrics = {}
 
-        with tools.RequiresGrad(self.actor):
-            with torch.cuda.amp.autocast(self._use_amp):
-                imag_feat, imag_state, imag_action = self._imagine(
-                    start, self.actor, self._config.imag_horizon, repeats
+        with torch.cuda.amp.autocast(self._use_amp):
+            imag_feat, imag_state, imag_action = self._imagine(
+                start, self.actor, self._config.imag_horizon, repeats
+            )
+            reward = objective(imag_feat, imag_state, imag_action)
+            actor_ent = self.actor(imag_feat).entropy()
+            state_ent = self._world_model.dynamics.get_dist(imag_state).entropy()
+            target, weights, base = self._compute_target(
+                imag_feat, imag_state, imag_action, reward, actor_ent, state_ent
+            )
+
+        # Snapshot log-probs before any weight updates so r_t is meaningful
+        # in epochs 2+ (epoch 1 always has r_t = 1 by construction).
+        if self._config.ppo_epsilon > 0.0:
+            with torch.no_grad():
+                log_prob_old = (
+                    self.actor(imag_feat.detach())
+                    .log_prob(imag_action)[:-1][:, :, None]
                 )
-                # print("#"*100)
-                # for k, v in imag_state.items():
-                #     print(k, v.shape)
-                reward = objective(imag_feat, imag_state, imag_action)
-                actor_ent = self.actor(imag_feat).entropy()
-                state_ent = self._world_model.dynamics.get_dist(imag_state).entropy()
-                # this target is not scaled
-                # slow is flag to indicate whether slow_target is used for lambda-return
-                target, weights, base = self._compute_target(
-                    imag_feat, imag_state, imag_action, reward, actor_ent, state_ent
-                )
-                actor_loss, mets = self._compute_actor_loss(
-                    imag_feat,
-                    imag_state,
-                    imag_action,
-                    target,
-                    actor_ent,
-                    state_ent,
-                    weights,
-                    base,
-                )
+        else:
+            log_prob_old = None
+
+        for _epoch in range(self._config.ppo_epochs):
+            with tools.RequiresGrad(self.actor):
+                with torch.cuda.amp.autocast(self._use_amp):
+                    actor_loss, mets = self._compute_actor_loss(
+                        imag_feat,
+                        imag_state,
+                        imag_action,
+                        target,
+                        actor_ent,
+                        state_ent,
+                        weights,
+                        base,
+                        log_prob_old=log_prob_old,
+                    )
                 metrics.update(mets)
-                value_input = imag_feat
+                metrics.update(self._actor_opt(actor_loss, self.actor.parameters()))
+
+        value_input = imag_feat
 
         with tools.RequiresGrad(self.value):
             with torch.cuda.amp.autocast(self._use_amp):
@@ -378,7 +390,6 @@ class ImagBehavior(nn.Module):
             metrics.update(tools.tensorstats(imag_action, "imag_action"))
         metrics["actor_entropy"] = to_np(torch.mean(actor_ent))
         with tools.RequiresGrad(self):
-            metrics.update(self._actor_opt(actor_loss, self.actor.parameters()))
             metrics.update(self._value_opt(value_loss, self.value.parameters()))
         return imag_feat, imag_state, imag_action, weights, metrics
 
@@ -449,6 +460,7 @@ class ImagBehavior(nn.Module):
         state_ent,
         weights,
         base,
+        log_prob_old=None,
     ):
         metrics = {}
         inp = imag_feat.detach() if self._stop_grad_actor else imag_feat
@@ -479,10 +491,19 @@ class ImagBehavior(nn.Module):
         if self._config.imag_gradient == "dynamics":
             actor_target = adv
         elif self._config.imag_gradient == "reinforce":
-            actor_target = (
-                policy.log_prob(imag_action)[:-1][:, :, None]
-                * reinforce_adv.detach()
-            )
+            log_prob = policy.log_prob(imag_action)[:-1][:, :, None]
+            if self._config.ppo_epsilon > 0.0 and log_prob_old is not None:
+                r_t = (log_prob - log_prob_old).exp()
+                eps = self._config.ppo_epsilon
+                obj_unclip = r_t * reinforce_adv.detach()
+                obj_clip = torch.clamp(r_t, 1 - eps, 1 + eps) * reinforce_adv.detach()
+                actor_target = torch.min(obj_unclip, obj_clip)
+                metrics["actor_ppo_r_mean"] = to_np(r_t.mean())
+                metrics["actor_ppo_clip_frac"] = to_np(
+                    ((r_t < 1 - eps) | (r_t > 1 + eps)).float().mean()
+                )
+            else:
+                actor_target = log_prob * reinforce_adv.detach()
         elif self._config.imag_gradient == "both":
             actor_target = (
                 policy.log_prob(imag_action)[:-1][:, :, None]
