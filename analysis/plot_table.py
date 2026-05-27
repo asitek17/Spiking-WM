@@ -32,7 +32,7 @@ DIAGNOSTICS = ["eval_return", "value_mean", "actor_entropy", "actor_et_max",
                "actor_grad_norm", "model_loss"]
 CURVE_METRICS = ["eval_return", "train_return", "value_mean"]
 CONDITION_ORDER = ["dynamics", "reinforce", "reinforce_stab", "reinforce_stab2", "reinforce_back_et",
-                   "ppo", "ppo_back_et", "ppo_stab"]
+                   "ppo", "ppo_back_et", "ppo_stab", "ppo_stab2"]
 
 
 def load(csv_path):

@@ -1,0 +1,23 @@
+# Rung 1.5 stabilized v2: только фикс энтропии, остальное как в оригинальном ppo.
+#
+# Диагноз ppo_stab (v1): K=2 + ε=0.1 оказались избыточно консервативными —
+# r_mean ≈ 1.0004 (почти не меняется за эпоху), clip_frac ~0.25.
+# С σ=0.3 политика шире → r_t остаётся у 1 → K=4 эпохи снова безопасны.
+#
+# Изменения vs r1_ppo:
+#   actor_min_std: 0.3  — единственный фикс (убирает энтропийный пол)
+#   actor_reinforce_norm_adv: True — масштабирование advantage через RewardEMA
+# Возвращено:
+#   ppo_epochs: 4, ppo_epsilon: 0.2  — были лишними ограничениями
+spike_times: 5
+steps: 40000
+batch_size: 16
+train_ratio: 512
+eval_every: 20000
+eval_episode_num: 5
+log_every: 5000
+imag_gradient: 'reinforce'
+ppo_epsilon: 0.2
+ppo_epochs: 4
+actor_min_std: 0.3
+actor_reinforce_norm_adv: True
