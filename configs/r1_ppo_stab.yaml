@@ -1,0 +1,20 @@
+# Rung 1.5 stabilized: PPO with entropy floor fix + conservative clip.
+#
+# Changes vs r1_ppo:
+#   actor_min_std: 0.3  — prevents entropy floor (σ=0.1 killed score-function gradient)
+#   ppo_epsilon:   0.1  — tighter clip; reduces oscillation when r_t swings far from 1
+#   ppo_epochs:    2    — fewer reuse epochs; less gradient accumulation on stale r_t
+#   actor_reinforce_norm_adv: True  — RewardEMA-normalized advantage; controls scale as returns grow
+#   steps:        80000 — 2× longer to reach convergence (ppo_s0 still growing at 40k)
+spike_times: 5
+steps: 80000
+batch_size: 16
+train_ratio: 512
+eval_every: 20000
+eval_episode_num: 5
+log_every: 5000
+imag_gradient: 'reinforce'
+ppo_epsilon: 0.1
+ppo_epochs: 2
+actor_min_std: 0.3
+actor_reinforce_norm_adv: True

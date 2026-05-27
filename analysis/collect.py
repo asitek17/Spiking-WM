@@ -29,6 +29,7 @@ MANIFEST = [
     ("r1_reinforce_stab2_s0", "reinforce_stab2", 0),
     ("r1_ppo_s0", "ppo", 0),
     ("r1_ppo_back_et_s0", "ppo_back_et", 0),
+    ("r1_ppo_stab_s0", "ppo_stab", 0),
 ]
 
 # Primary metric is eval_return / train_return; the rest are diagnostics.

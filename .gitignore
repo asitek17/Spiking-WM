@@ -1,6 +1,9 @@
 # Training logs and checkpoints
 logs/
 
+# Analysis outputs (generated files, not source)
+analysis/out/
+
 # Local-only notes (not deployed to server)
 notes/
 
