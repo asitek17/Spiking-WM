@@ -111,6 +111,8 @@ ppo_epochs: 1
 imag_gradient_mix: '0.0'
 imag_sample: True
 actor_dist: 'normal'
+actor_readout: 'linear'
+actor_readout_tau: 2.0
 actor_entropy: '3e-4'
 actor_state_entropy: 0.0
 actor_init_std: 1.0

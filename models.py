@@ -251,7 +251,9 @@ class ImagBehavior(nn.Module):
             config.actor_temp,
             outscale=1.0,
             unimix_ratio=config.action_unimix_ratio,
-            spike_times=config.spike_times
+            spike_times=config.spike_times,
+            readout=config.actor_readout,
+            readout_tau=config.actor_readout_tau,
         )
         if config.value_head == "symlog_disc":
             self.value = networks.SpikeMLP(

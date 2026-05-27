@@ -305,6 +305,27 @@ class LIFNode(BaseNode):
         self.mem = self.mem * (1 - self.spike.detach())
 
 
+class LINode(nn.Module):
+    """Pure leaky integrator — no threshold, no spike. Output is membrane potential.
+
+    Chip-compatible readout: on neuromorphic hardware this maps to a neuron
+    that only integrates synaptic input and never fires.
+    """
+
+    def __init__(self, tau=2.0, v_reset=0.0):
+        super().__init__()
+        self.tau = tau
+        self.v_reset = v_reset
+        self.mem = v_reset
+
+    def forward(self, inputs):
+        self.mem = self.mem + (inputs - self.mem) / self.tau
+        return self.mem
+
+    def n_reset(self):
+        self.mem = self.v_reset
+
+
 class MCNode(BaseMCNode):
     def __init__(self, 
                  threshold=0.5,

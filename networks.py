@@ -886,10 +886,13 @@ class ActionHead(nn.Module):
         temp=0.1,
         outscale=1.0,
         unimix_ratio=0.01,
-        spike_times=5
+        spike_times=5,
+        readout="linear",
+        readout_tau=2.0,
     ):
         super(ActionHead, self).__init__()
         self.T= spike_times
+        self._readout = readout
         self._size = size
         self._layers = layers
         self._units = units
@@ -921,16 +924,23 @@ class ActionHead(nn.Module):
             self._dist_layer = nn.Linear(self._units, self._size)
             self._dist_layer.apply(tools.uniform_weight_init(outscale))
 
+        if readout == "li":
+            self._readout_node = node.LINode(tau=readout_tau)
+
     def forward(self, features, dtype=None):
-        # x = features
         self.reset()
-        xs = []
-        for step in range(self.T):
-            s = self._pre_layers(features[step])
-            xs.append(s)
-        x = sum(xs) / self.T
+        if self._readout == "li":
+            for step in range(self.T):
+                s = self._pre_layers(features[step])
+                self._readout_node(self._dist_layer(s))
+            x = self._readout_node.mem
+        else:
+            xs = []
+            for step in range(self.T):
+                s = self._pre_layers(features[step])
+                xs.append(s)
+            x = self._dist_layer(sum(xs) / self.T)
         if self._dist == "tanh_normal":
-            x = self._dist_layer(x)
             mean, std = torch.split(x, 2, -1)
             mean = torch.tanh(mean)
             std = F.softplus(std + self._init_std) + self._min_std
@@ -941,7 +951,6 @@ class ActionHead(nn.Module):
             dist = td.independent.Independent(dist, 1)
             dist = tools.SampleDist(dist)
         elif self._dist == "tanh_normal_5":
-            x = self._dist_layer(x)
             mean, std = torch.split(x, 2, -1)
             mean = 5 * torch.tanh(mean / 5)
             std = F.softplus(std + 5) + 5
@@ -952,7 +961,6 @@ class ActionHead(nn.Module):
             dist = td.independent.Independent(dist, 1)
             dist = tools.SampleDist(dist)
         elif self._dist == "normal":
-            x = self._dist_layer(x)
             mean, std = torch.split(x, [self._size] * 2, -1)
             std = (self._max_std - self._min_std) * torch.sigmoid(
                 std + 2.0
@@ -960,21 +968,17 @@ class ActionHead(nn.Module):
             dist = td.normal.Normal(torch.tanh(mean), std)
             dist = tools.ContDist(td.independent.Independent(dist, 1))
         elif self._dist == "normal_1":
-            x = self._dist_layer(x)
-            dist = td.normal.Normal(mean, 1)
+            dist = td.normal.Normal(x, 1)
             dist = tools.ContDist(td.independent.Independent(dist, 1))
         elif self._dist == "trunc_normal":
-            x = self._dist_layer(x)
             mean, std = torch.split(x, [self._size] * 2, -1)
             mean = torch.tanh(mean)
             std = 2 * torch.sigmoid(std / 2) + self._min_std
             dist = tools.SafeTruncatedNormal(mean, std, -1, 1)
             dist = tools.ContDist(td.independent.Independent(dist, 1))
         elif self._dist == "onehot":
-            x = self._dist_layer(x)
             dist = tools.OneHotDist(x, unimix_ratio=self._unimix_ratio)
         elif self._dist == "onehot_gumble":
-            x = self._dist_layer(x)
             temp = self._temp
             dist = tools.ContDist(td.gumbel.Gumbel(x, 1 / temp))
         else:
