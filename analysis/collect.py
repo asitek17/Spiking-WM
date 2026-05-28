@@ -31,6 +31,8 @@ MANIFEST = [
     ("r1_ppo_back_et_s0", "ppo_back_et", 0),
     ("r1_ppo_stab_s0", "ppo_stab", 0),
     ("r1_ppo_stab2_s0", "ppo_stab2", 0),
+    ("dynamics_li_s0", "dynamics_li", 0),
+    ("ppo_stab2_li_s0", "ppo_stab2_li", 0),
 ]
 
 # Primary metric is eval_return / train_return; the rest are diagnostics.
