@@ -906,34 +906,45 @@ class ActionHead(nn.Module):
         self._temp = temp() if callable(temp) else temp
 
 
+        if self._dist in ["tanh_normal", "tanh_normal_5", "normal", "trunc_normal"]:
+            _dist_out_size = 2 * self._size
+        else:
+            _dist_out_size = self._size
+
         pre_layers = []
+        self._readout_linear = None
         for index in range(self._layers):
-            pre_layers.append(nn.Linear(inp_dim, self._units, bias=False))
-            pre_layers.append(norm(self._units, **norm_p))
-            pre_layers.append(act(**act_p))
+            is_last = (index == self._layers - 1) and (readout == "li")
+            out_units = _dist_out_size if is_last else self._units
+            lin = nn.Linear(inp_dim, out_units, bias=False)
+            pre_layers.append(lin)
+            pre_layers.append(norm(out_units, **norm_p))
+            if is_last:
+                pre_layers.append(node.LINode(tau=readout_tau))
+                self._readout_linear = lin
+            else:
+                pre_layers.append(act(**act_p))
             if index == 0:
                 inp_dim = self._units
         self._pre_layers = nn.Sequential(*pre_layers)
         self._pre_layers.apply(tools.weight_init)
+        if self._readout_linear is not None:
+            self._readout_linear.apply(tools.uniform_weight_init(outscale))
 
-        if self._dist in ["tanh_normal", "tanh_normal_5", "normal", "trunc_normal"]:
-            self._dist_layer = nn.Linear(self._units, 2 * self._size)
-            self._dist_layer.apply(tools.uniform_weight_init(outscale))
-
-        elif self._dist in ["normal_1", "onehot", "onehot_gumbel"]:
-            self._dist_layer = nn.Linear(self._units, self._size)
-            self._dist_layer.apply(tools.uniform_weight_init(outscale))
-
-        if readout == "li":
-            self._readout_node = node.LINode(tau=readout_tau)
+        if readout != "li":
+            if self._dist in ["tanh_normal", "tanh_normal_5", "normal", "trunc_normal"]:
+                self._dist_layer = nn.Linear(self._units, 2 * self._size)
+                self._dist_layer.apply(tools.uniform_weight_init(outscale))
+            elif self._dist in ["normal_1", "onehot", "onehot_gumbel"]:
+                self._dist_layer = nn.Linear(self._units, self._size)
+                self._dist_layer.apply(tools.uniform_weight_init(outscale))
 
     def forward(self, features, dtype=None):
         self.reset()
         if self._readout == "li":
+            x = None
             for step in range(self.T):
-                s = self._pre_layers(features[step])
-                self._readout_node(self._dist_layer(s))
-            x = self._readout_node.mem
+                x = self._pre_layers(features[step])
         else:
             xs = []
             for step in range(self.T):

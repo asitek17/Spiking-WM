@@ -143,17 +143,23 @@ class TestActionHeadLI:
             f"Output not deterministic after reset: max diff {(mean1-mean2).abs().max():.6f}"
         )
 
+    def test_no_dist_layer(self):
+        """readout='li' must not create _dist_layer; must expose _readout_linear."""
+        head = make_action_head(readout="li")
+        assert not hasattr(head, "_dist_layer"), "readout='li' must not have _dist_layer"
+        assert hasattr(head, "_readout_linear"), "readout='li' must have _readout_linear"
+
     def test_grad_flows_through_readout(self):
-        """loss.backward() must give non-zero gradient for _dist_layer weights."""
+        """loss.backward() must give non-zero gradient for _readout_linear weights."""
         head = make_action_head(readout="li")
         features = make_features()
         dist = head(features)
         sample = dist.sample()
         loss = -dist.log_prob(sample.detach()).mean()
         loss.backward()
-        w_grad = head._dist_layer.weight.grad
-        assert w_grad is not None, "_dist_layer.weight.grad is None"
-        assert not torch.all(w_grad == 0), "_dist_layer.weight.grad is all zeros"
+        w_grad = head._readout_linear.weight.grad
+        assert w_grad is not None, "_readout_linear.weight.grad is None"
+        assert not torch.all(w_grad == 0), "_readout_linear.weight.grad is all zeros"
 
     def test_std_above_min_std(self):
         """Standard deviation must be above min_std everywhere."""
