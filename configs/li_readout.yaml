@@ -1,2 +1,2 @@
 actor_readout: 'li'
-actor_readout_tau: 2.0
+actor_readout_tau: 10.0

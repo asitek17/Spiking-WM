@@ -916,9 +916,10 @@ class ActionHead(nn.Module):
         for index in range(self._layers):
             is_last = (index == self._layers - 1) and (readout == "li")
             out_units = _dist_out_size if is_last else self._units
-            lin = nn.Linear(inp_dim, out_units, bias=False)
+            lin = nn.Linear(inp_dim, out_units, bias=is_last)
             pre_layers.append(lin)
-            pre_layers.append(norm(out_units, **norm_p))
+            if not is_last:
+                pre_layers.append(norm(out_units, **norm_p))
             if is_last:
                 pre_layers.append(node.LINode(tau=readout_tau))
                 self._readout_linear = lin

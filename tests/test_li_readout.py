@@ -149,6 +149,17 @@ class TestActionHeadLI:
         assert not hasattr(head, "_dist_layer"), "readout='li' must not have _dist_layer"
         assert hasattr(head, "_readout_linear"), "readout='li' must have _readout_linear"
 
+    def test_no_norm_in_last_block(self):
+        """Last block must be Linear→LINode with no norm in between."""
+        import normalization
+        head = make_action_head(readout="li")
+        layers = list(head._pre_layers)
+        li_idx = next(i for i, m in enumerate(layers) if isinstance(m, node.LINode))
+        assert li_idx >= 1, "LINode must not be first"
+        assert not isinstance(layers[li_idx - 1], normalization.PopNorm), (
+            "No norm should appear directly before LINode in the readout block"
+        )
+
     def test_grad_flows_through_readout(self):
         """loss.backward() must give non-zero gradient for _readout_linear weights."""
         head = make_action_head(readout="li")
